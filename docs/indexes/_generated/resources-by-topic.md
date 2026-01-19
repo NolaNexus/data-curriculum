@@ -7,4 +7,5 @@ This is generated from `type: resource` front matter.
 
 ## Topics
 
-- [uncategorized](./resources-uncategorized.md) (1)
+- [course/resource](./resources-course-resource.md) (1)
+- [uncategorized](./resources-uncategorized.md) (27)

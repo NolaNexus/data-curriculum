@@ -1,0 +1,24 @@
+---
+type: lesson
+module: DE Core
+timebox_minutes: 45
+status: active
+created: 2026-01-19T00:00:00.000Z
+tags:
+  - course/lesson
+  - topic/ingestion
+estimated_time_minutes: 45
+id: les_goal
+title: Goal
+---
+
+# Goal
+Make reruns safe and enable backfills.
+
+# Patterns
+- upsert by natural key
+- partition overwrite by date
+- temp → validate → swap
+
+# Checks
+- Same inputs twice → same final tables.

@@ -328,6 +328,126 @@ function main() {
     });
   }
 
+  // --------------------------------------
+  // Index 4: Gate roadmap (next lessons per gate)
+  // --------------------------------------
+  {
+    const outPath = path.join(OUT_DIR, "gate-roadmap.md");
+
+    // Build gate -> lessons mapping using lesson.mastery_gate
+    const gateToLessons = new Map(); // gateId -> lessonRow[]
+    for (const l of lessons) {
+      const lessonId = l.fm.id || l.derivedId;
+      const gateId = (l.fm.mastery_gate || "").toString().trim();
+      if (!gateId) continue;
+
+      const prereqLessons = safeArray(l.fm?.prerequisites?.lessons);
+      const prereqGates = safeArray(l.fm?.prerequisites?.gates);
+
+      const { missingLessons, missingGates } = summarizeMissing(
+        prereqLessons,
+        prereqGates,
+        completedLessons,
+        passedGates
+      );
+
+      const completed = completedLessons.has(lessonId);
+      const unlocked = !completed && missingLessons.length === 0 && missingGates.length === 0;
+
+      const row = {
+        id: lessonId,
+        title: l.fm.title || lessonId,
+        file: l.file,
+        level: (l.fm.level || "").toString(),
+        unlocked,
+        completed,
+        missingLessons,
+        missingGates,
+        kind: (l.fm.kind || "").toString(),
+      };
+
+      if (!gateToLessons.has(gateId)) gateToLessons.set(gateId, []);
+      gateToLessons.get(gateId).push(row);
+    }
+
+    // Only show gates that exist as type: gate docs (if you have them)
+    const gateRows = gates.map((g) => ({
+      id: g.fm.id || g.derivedId,
+      title: g.fm.title || (g.fm.id || g.derivedId),
+      file: g.file,
+      passed: passedGates.has(g.fm.id || g.derivedId),
+    }));
+
+    const unpassed = gateRows
+      .filter((g) => !g.passed)
+      .sort((a, b) => a.title.localeCompare(b.title));
+
+    const lines = [];
+    lines.push(`Generated from \`type: gate\` + lessons that reference them via \`lesson.mastery_gate\`.\n`);
+    lines.push(`This is your **single stream toward mastery**: pick a gate, do the unlocked lessons, then attempt the gate.\n`);
+
+    if (unpassed.length === 0) {
+      lines.push(`All gates are marked as passed. Nice.\n`);
+    } else {
+      for (const g of unpassed) {
+        const related = (gateToLessons.get(g.id) || []).slice();
+
+        // If no lessons map to this gate yet, still list the gate
+        lines.push(`## ${g.title}`);
+        {
+          const gateLink = relLink(path.dirname(outPath), g.file);
+          lines.push(`- Gate doc: [open](${gateLink})  (\`${g.id}\`)`);
+        }
+
+        if (related.length === 0) {
+          lines.push(`- No lessons currently mapped to this gate (add \`mastery_gate: ${g.id}\` to lessons).`);
+          lines.push("");
+          continue;
+        }
+
+        const completedCount = related.filter((r) => r.completed).length;
+        lines.push(`- Progress: **${completedCount}/${related.length}** mapped lessons completed\n`);
+
+        const unlocked = related.filter((r) => r.unlocked).sort((a, b) => a.title.localeCompare(b.title));
+        const locked = related
+          .filter((r) => !r.completed && !r.unlocked)
+          .sort((a, b) => (a.missingGates.length + a.missingLessons.length) - (b.missingGates.length + b.missingLessons.length));
+
+        lines.push(`### Unlocked lessons toward this gate`);
+        if (unlocked.length === 0) {
+          lines.push(`- None unlocked yet (check prereqs below).`);
+        } else {
+          for (const r of unlocked) {
+            const link = relLink(path.dirname(outPath), r.file);
+            const kind = r.kind ? ` (${r.kind})` : "";
+            lines.push(`- [${r.title}](${link})${kind} — \`${r.id}\``);
+          }
+        }
+        lines.push("");
+
+        lines.push(`### Locked lessons (what’s blocking them)`);
+        if (locked.length === 0) {
+          lines.push(`- None locked (or everything is completed).`);
+        } else {
+          const top = locked.slice(0, 10);
+          for (const r of top) {
+            const link = relLink(path.dirname(outPath), r.file);
+            const mg = r.missingGates.map((x) => `\`${x}\``).join(", ");
+            const ml = r.missingLessons.map((x) => `\`${x}\``).join(", ");
+            lines.push(`- [${r.title}](${link}) — missing gates: ${mg || "—"}; missing lessons: ${ml || "—"}`);
+          }
+        }
+        lines.push("");
+      }
+    }
+
+    writeDoc(outPath, {
+      id: "idx_gate_roadmap",
+      title: "Gate roadmap",
+      body: lines.join("\n"),
+    });
+  }
+
   console.log(`Generated indexes into: ${path.relative(REPO_ROOT, OUT_DIR)}`);
   console.log(`- docs/indexes/_generated/gates-not-passed.md`);
   console.log(`- docs/indexes/_generated/resources-by-topic.md (+ per-topic pages)`);
